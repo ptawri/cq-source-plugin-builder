@@ -1,0 +1,192 @@
+# -- Deployment mode: "cronjob" (scheduled) or "deployment" (always-on).
+mode: cronjob
+
+# -- CloudQuery image settings.
+image:
+  repository: ghcr.io/cloudquery/cloudquery
+  # Digest pinning is recommended for production.
+  tag: "6.5.0"
+  pullPolicy: IfNotPresent
+
+# -- CronJob-specific settings (only used when mode=cronjob).
+cronJob:
+  # Standard cron expression.
+  schedule: "0 * * * *"
+  # Forbid prevents concurrent syncs.
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  # Optional deadline in seconds for the job to start.
+  startingDeadlineSeconds: null
+  # Additional annotations for the CronJob resource.
+  annotations: {}
+
+# -- Deployment-specific settings (only used when mode=deployment).
+deployment:
+  replicaCount: 1
+  # Additional annotations for the Deployment resource.
+  annotations: {}
+
+# ---------------------------------------------------------------------------
+# ServiceAccount
+# ---------------------------------------------------------------------------
+serviceAccount:
+  # -- Create a dedicated ServiceAccount.
+  create: true
+  # -- Override the auto-generated name. Defaults to the release fullname.
+  name: ""
+  # -- Annotations to add (e.g. for Workload Identity on GKE/AKS).
+  annotations: {}
+
+# ---------------------------------------------------------------------------
+# RBAC
+# ---------------------------------------------------------------------------
+rbac:
+  # -- Create ClusterRole and ClusterRoleBinding.
+  create: true
+  # -- When true, grants read access to all API groups cluster-wide.
+  # -- Set to false to restrict to specific namespaces (requires manual RoleBinding).
+  clusterWide: true
+  # -- Extra API groups/resources/verbs to append to the ClusterRole.
+  extraRules: []
+  # - apiGroups: ["apps"]
+  #   resources: ["deployments"]
+  #   verbs: ["get", "list", "watch"]
+
+# ---------------------------------------------------------------------------
+# Kubernetes source configuration
+# ---------------------------------------------------------------------------
+source:
+  # -- CloudQuery plugin spec for the Kubernetes source.
+  # -- Uses in-cluster auth by default (no kubeconfig needed).
+  # -- See https://hub.cloudquery.io/plugins/source/cloudquery/k8s
+  spec:
+    discovery_filter: all
+  # -- Tables to sync. Supports glob patterns.
+  tables:
+    - "k8s_*"
+  # -- Tables to skip.
+  skipTables: []
+
+# ---------------------------------------------------------------------------
+# Destination configuration (CHOOSE ONE approach)
+# ---------------------------------------------------------------------------
+destination:
+  # -- Name for the destination in the CloudQuery config.
+  name: "my-destination"
+  # -- CloudQuery plugin registry and path for the destination.
+  # -- Example: "cloudquery/postgresql"
+  path: ""
+  version: ""
+
+  # OPTION A: Embed raw destination spec YAML directly in values.
+  # This is rendered verbatim into the CloudQuery config under `spec:`.
+  spec: {}
+  # spec:
+  #   connection_string: "postgresql://user:pass@host:5432/db"
+
+  # OPTION B: Reference an existing Secret or ConfigMap that holds
+  # the full destination spec YAML under a single key.
+  # The chart will mount it and reference it in the CloudQuery config.
+  existingSecret:
+    # -- Name of the existing Secret. Leave empty to disable.
+    name: ""
+    # -- Key inside the Secret that contains the destination spec YAML.
+    key: "spec.yaml"
+
+  existingConfigMap:
+    # -- Name of the existing ConfigMap. Leave empty to disable.
+    name: ""
+    # -- Key inside the ConfigMap that contains the destination spec YAML.
+    key: "spec.yaml"
+
+# ---------------------------------------------------------------------------
+# Plain Kubernetes Secret for destination credentials
+# (used when destination.existingSecret.name is empty)
+# ---------------------------------------------------------------------------
+secret:
+  # -- Create the Secret resource.
+  create: false
+  # -- Key-value pairs written into the Secret (stringData).
+  # -- Intended for small configs or connection strings.
+  data: {}
+  # data:
+  #   connection_string: "postgresql://user:pass@host:5432/db"
+
+# ---------------------------------------------------------------------------
+# External Secrets Operator (ESO)
+# ---------------------------------------------------------------------------
+externalSecret:
+  # -- Enable ExternalSecret resource creation.
+  enabled: false
+  # -- How often ESO refreshes the secret.
+  refreshInterval: "1h"
+  # -- Reference to the ESO SecretStore or ClusterSecretStore.
+  secretStoreRef:
+    name: ""
+    kind: ClusterSecretStore
+  # -- Name of the Kubernetes Secret that ESO will create/manage.
+  # -- Defaults to <release>-destination-credentials if empty.
+  targetSecretName: ""
+  # -- Individual key mappings from the external store.
+  data: []
+  # - secretKey: connection_string
+  #   remoteRef:
+  #     key: my-vault-path
+  #     property: connection_string
+  # -- Bulk mappings from the external store.
+  dataFrom: []
+  # - extract:
+  #     key: my-vault-path
+
+# ---------------------------------------------------------------------------
+# CloudQuery general settings
+# ---------------------------------------------------------------------------
+cloudquery:
+  logLevel: info
+  logFormat: json
+
+# ---------------------------------------------------------------------------
+# Pod / container settings
+# ---------------------------------------------------------------------------
+resources: {}
+# resources:
+#   requests:
+#     cpu: 100m
+#     memory: 256Mi
+#   limits:
+#     memory: 512Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# -- Extra environment variables for the CloudQuery container.
+extraEnv: []
+# - name: FOO
+#   value: bar
+
+# -- Extra volume mounts for the CloudQuery container.
+extraVolumeMounts: []
+
+# -- Extra volumes for the pod.
+extraVolumes: []
+
+# -- Pod-level annotations.
+podAnnotations: {}
+
+# -- Pod-level labels.
+podLabels: {}
+
+# -- Pod security context.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65534
+
+# -- Container security context.
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL

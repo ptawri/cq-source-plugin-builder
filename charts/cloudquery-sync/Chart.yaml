@@ -1,0 +1,20 @@
+apiVersion: v2
+name: cloudquery-sync
+description: >
+  Deploys CloudQuery in-cluster to sync Kubernetes resources (AKS/GKE) to a
+  configurable destination. Supports CronJob (scheduled) and Deployment
+  (continuous) modes.
+type: application
+version: 0.1.0
+appVersion: "6.5.0"
+keywords:
+  - cloudquery
+  - kubernetes
+  - data-sync
+  - aks
+  - gke
+home: https://github.com/ptawri/cq-source-plugin-builder
+sources:
+  - https://github.com/ptawri/cq-source-plugin-builder
+maintainers:
+  - name: ptawri

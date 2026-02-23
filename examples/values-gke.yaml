@@ -1,0 +1,91 @@
+# Example values for GKE (Google Kubernetes Engine)
+# Deploy with:
+#   helm upgrade --install cloudquery-sync charts/cloudquery-sync \
+#     --namespace cloudquery --create-namespace \
+#     -f examples/values-gke.yaml
+#
+# Prerequisites:
+#   1. Enable Workload Identity on your GKE cluster.
+#   2. Create a GCP Service Account (GSA) with necessary permissions:
+#      - BigQuery: BigQuery Data Editor + BigQuery Job User on the project/dataset
+#      - PostgreSQL/Cloud SQL: Cloud SQL Client role (+ use IAM auth or password)
+#   3. Bind the Kubernetes ServiceAccount to the GSA:
+#      kubectl annotate serviceaccount cloudquery-sync \
+#        iam.gke.io/gcp-service-account=<GSA_EMAIL>
+#      gcloud iam service-accounts add-iam-policy-binding <GSA_EMAIL> \
+#        --role=roles/iam.workloadIdentityUser \
+#        --member="serviceAccount:<PROJECT>.svc.id.goog[cloudquery/cloudquery-sync]"
+
+mode: cronjob
+
+cronJob:
+  schedule: "0 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+
+image:
+  repository: ghcr.io/cloudquery/cloudquery
+  tag: "6.5.0"
+
+serviceAccount:
+  create: true
+  annotations:
+    # Workload Identity: bind this ServiceAccount to a GCP Service Account.
+    iam.gke.io/gcp-service-account: "<GSA_EMAIL>"
+
+rbac:
+  create: true
+  clusterWide: true
+
+source:
+  tables:
+    - "k8s_*"
+  spec:
+    discovery_filter: all
+
+# ---------------------------------------------------------------------------
+# Destination (choose ONE of the following approaches)
+# ---------------------------------------------------------------------------
+
+# OPTION A: BigQuery (uses Workload Identity for auth — no credentials needed)
+destination:
+  name: bigquery
+  path: cloudquery/bigquery
+  version: "v4.0.0"
+  spec:
+    project_id: "<GCP_PROJECT_ID>"
+    dataset_id: "cloudquery_k8s"
+
+# OPTION B: PostgreSQL with inline connection string
+# destination:
+#   name: postgresql
+#   path: cloudquery/postgresql
+#   version: "v8.0.0"
+#   spec:
+#     connection_string: "${POSTGRESQL_CONNECTION_STRING}"
+# extraEnv:
+#   - name: POSTGRESQL_CONNECTION_STRING
+#     valueFrom:
+#       secretKeyRef:
+#         name: cloudquery-pg-credentials
+#         key: connection_string
+
+# OPTION C: External Secrets Operator (uncomment to use)
+# externalSecret:
+#   enabled: true
+#   refreshInterval: "1h"
+#   secretStoreRef:
+#     name: my-gcp-secrets-manager-store
+#     kind: ClusterSecretStore
+#   data:
+#     - secretKey: connection_string
+#       remoteRef:
+#         key: cloudquery-pg-connection-string
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 512Mi

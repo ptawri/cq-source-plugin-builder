@@ -1,0 +1,36 @@
+# Example values for Deployment mode (always-on runner)
+# In this mode CloudQuery runs as a long-lived Deployment. When the pod
+# exits (e.g., after a sync), Kubernetes restarts it, effectively making it
+# run continuously. Pair with an appropriate restart backoff to control
+# sync frequency.
+#
+# Deploy with:
+#   helm upgrade --install cloudquery-sync charts/cloudquery-sync \
+#     --namespace cloudquery --create-namespace \
+#     -f examples/values-deployment.yaml
+
+mode: deployment
+
+deployment:
+  replicaCount: 1
+
+destination:
+  name: postgresql
+  path: cloudquery/postgresql
+  version: "v8.0.0"
+  spec:
+    connection_string: "${POSTGRESQL_CONNECTION_STRING}"
+
+extraEnv:
+  - name: POSTGRESQL_CONNECTION_STRING
+    valueFrom:
+      secretKeyRef:
+        name: cloudquery-pg-credentials
+        key: connection_string
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 512Mi
+  limits:
+    memory: 1Gi
