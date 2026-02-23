@@ -1,0 +1,47 @@
+{{- include "cloudquery-sync.validateDestination" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "cloudquery-sync.configMapName" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cloudquery-sync.labels" . | nindent 4 }}
+data:
+  # source-config.yaml contains the Kubernetes source block.
+  # When destination.spec is set, the destination block is also included here.
+  # When existingSecret/existingConfigMap is used, the destination block lives in
+  # the mounted file at /etc/cloudquery/destination.yaml (user-managed).
+  source-config.yaml: |
+    kind: source
+    spec:
+      name: kubernetes
+      path: cloudquery/k8s
+      version: "v12.0.0"
+      tables:
+        {{- range .Values.source.tables }}
+        - {{ . | quote }}
+        {{- end }}
+      {{- if .Values.source.skipTables }}
+      skip_tables:
+        {{- range .Values.source.skipTables }}
+        - {{ . | quote }}
+        {{- end }}
+      {{- end }}
+      destinations:
+        - {{ .Values.destination.name | quote }}
+      spec:
+        {{- toYaml .Values.source.spec | nindent 8 }}
+  {{- if not (or .Values.destination.existingSecret.name .Values.destination.existingConfigMap.name) }}
+  destination-config.yaml: |
+    kind: destination
+    spec:
+      name: {{ .Values.destination.name | quote }}
+      path: {{ .Values.destination.path | quote }}
+      version: {{ .Values.destination.version | quote }}
+      {{- if not (empty .Values.destination.spec) }}
+      spec:
+        {{- toYaml .Values.destination.spec | nindent 8 }}
+      {{- else }}
+      spec: {}
+      {{- end }}
+  {{- end }}

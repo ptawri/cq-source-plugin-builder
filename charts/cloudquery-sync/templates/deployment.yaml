@@ -1,0 +1,39 @@
+{{- if eq .Values.mode "deployment" }}
+{{- /*
+In Deployment mode the pod runs continuously. CloudQuery doesn't have a
+built-in "watch" mode, so the container is wrapped to loop indefinitely
+(re-running sync every interval). Alternatively, pair with --no-migrate
+flags or use a custom entrypoint. The simplest approach is to let the
+pod restart naturally via the Deployment's restartPolicy=Always.
+To do this the pod spec restartPolicy must be Always (not Never).
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "cloudquery-sync.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cloudquery-sync.labels" . | nindent 4 }}
+  {{- with .Values.deployment.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.deployment.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "cloudquery-sync.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "cloudquery-sync.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- include "cloudquery-sync.podSpec" . | nindent 6 }}
+{{- end }}

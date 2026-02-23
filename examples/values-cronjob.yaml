@@ -1,0 +1,41 @@
+# Example values for CronJob mode (scheduled sync)
+# This is the default mode. CloudQuery runs on a schedule and exits after
+# completing each sync.
+#
+# Deploy with:
+#   helm upgrade --install cloudquery-sync charts/cloudquery-sync \
+#     --namespace cloudquery --create-namespace \
+#     -f examples/values-cronjob.yaml
+
+mode: cronjob
+
+cronJob:
+  # Run every hour at minute 0.
+  schedule: "0 * * * *"
+  # Prevent overlapping syncs.
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  # Uncomment to set a deadline for job start (in seconds).
+  # startingDeadlineSeconds: 300
+
+destination:
+  name: postgresql
+  path: cloudquery/postgresql
+  version: "v8.0.0"
+  spec:
+    connection_string: "${POSTGRESQL_CONNECTION_STRING}"
+
+extraEnv:
+  - name: POSTGRESQL_CONNECTION_STRING
+    valueFrom:
+      secretKeyRef:
+        name: cloudquery-pg-credentials
+        key: connection_string
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 512Mi

@@ -1,0 +1,84 @@
+# Example values for AKS (Azure Kubernetes Service)
+# Deploy with:
+#   helm upgrade --install cloudquery-sync charts/cloudquery-sync \
+#     --namespace cloudquery --create-namespace \
+#     -f examples/values-aks.yaml
+#
+# Prerequisites:
+#   1. Enable Azure Workload Identity on your AKS cluster.
+#   2. Create an Azure Managed Identity (or App Registration) with the
+#      necessary permissions for your chosen destination.
+#   3. Create a federated credential binding the Kubernetes ServiceAccount
+#      to the Azure identity.
+#   4. Set AZURE_CLIENT_ID below to the client ID of the Managed Identity.
+
+mode: cronjob
+
+cronJob:
+  schedule: "0 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+
+image:
+  repository: ghcr.io/cloudquery/cloudquery
+  tag: "6.5.0"
+
+serviceAccount:
+  create: true
+  annotations:
+    # Workload Identity: bind this ServiceAccount to an Azure Managed Identity.
+    azure.workload.identity/client-id: "<AZURE_CLIENT_ID>"
+
+podLabels:
+  # Required for Azure Workload Identity token injection.
+  azure.workload.identity/use: "true"
+
+rbac:
+  create: true
+  clusterWide: true
+
+source:
+  tables:
+    - "k8s_*"
+  spec:
+    discovery_filter: all
+
+# ---------------------------------------------------------------------------
+# Destination (choose ONE of the following approaches)
+# ---------------------------------------------------------------------------
+
+# OPTION A: Inline spec (Azure Database for PostgreSQL)
+destination:
+  name: postgresql
+  path: cloudquery/postgresql
+  version: "v8.0.0"
+  spec:
+    connection_string: "${POSTGRESQL_CONNECTION_STRING}"
+
+# Inject the connection string from a Secret env var:
+extraEnv:
+  - name: POSTGRESQL_CONNECTION_STRING
+    valueFrom:
+      secretKeyRef:
+        name: cloudquery-pg-credentials
+        key: connection_string
+
+# OPTION B: External Secrets Operator (uncomment to use)
+# externalSecret:
+#   enabled: true
+#   refreshInterval: "1h"
+#   secretStoreRef:
+#     name: my-azure-keyvault-store
+#     kind: ClusterSecretStore
+#   data:
+#     - secretKey: connection_string
+#       remoteRef:
+#         key: cloudquery-pg-connection-string
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    memory: 512Mi
